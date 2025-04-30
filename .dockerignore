@@ -1,13 +1,17 @@
-.git
-.gitignore
-.env
-.dockerignore
+# Ignore Python cache files
 __pycache__/
-*.py[cod]
-*$py.class
-venv/
-.venv/
-.idea/
-.vscode/
-docker-compose*.yml
-README.md
+*.pyc
+*.pyo
+
+# Ignore environment files
+.env
+
+# Ignore log files
+*.log
+
+# Ignore temporary files
+*.tmp
+
+# Ignore directories for uploads and reports
+file_uploads/
+attrition_reports/

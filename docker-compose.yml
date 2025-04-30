@@ -1,12 +1,24 @@
+# Docker Compose configuration for the FastAPI application
 version: '1.0'
 
 services:
   app:
-    container_name:  fast-api-app
+    # Name of the container
+    container_name: fast-api-app
+
+    # Load environment variables from the .env file
     env_file: .env
+
+    # Build the Docker image from the current directory
     build: .
+
+    # Command to run the FastAPI application using uvicorn
     command: uvicorn src.api_report_analysis:app --host 0.0.0.0 --port 8000 --reload
+
+    # Restart the container automatically if it stops
     restart: always
+
+    # Map port 8000 on the host to port 8000 in the container
     ports:
-      - "8000:8000"
+      - "8001:8000"
 
