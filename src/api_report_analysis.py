@@ -20,6 +20,7 @@ import shutil
 import uuid
 from pathlib import Path
 from src.logging_config import setup_logging
+from src.cors_config import setup_cors
 
 # Assign the logger instance returned by setup_logging to a variable
 logger = setup_logging()
@@ -30,15 +31,7 @@ app = FastAPI(title="Attrition Analysis API",
              version="1.0.0")
 
 # Add CORS middleware with fixed syntax
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://automatereporting", 
-                  "https://sneha42-code.github.io", "*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
+setup_cors(app)
 
 # Define base directories
 BASE_DIR = Path(__file__).parent.parent
@@ -64,10 +57,7 @@ async def debug_request(request, call_next):
     print(f"Response: {response.status_code}")
     return response
 
-# Root endpoint
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Attrition Analysis API"}
+
 
 # Helper functions for column validation
 def ensure_employee_name_column(df):
@@ -839,6 +829,11 @@ def create_attrition_report(df, output_dir):
     except Exception as e:
         logger.error(f"Failed to save report: {e}")
         return False, None, None
+
+# Root endpoint
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Attrition Analysis API"}
 
 # File upload endpoint
 @app.post("/api/upload/")
