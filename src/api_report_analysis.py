@@ -1,3 +1,4 @@
+# Import necessary libraries
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -9,7 +10,6 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 import matplotlib.gridspec as gridspec
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
-import logging
 from fastapi import Body, FastAPI, Response, status, UploadFile, File, BackgroundTasks
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -19,12 +19,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import uuid
 from pathlib import Path
+from src.logging_config import setup_logging
+from src.cors_config import setup_cors
 
-# Create the FastAPI app
-app = FastAPI(title="Attrition Analysis API", 
-             description="API for generating automated attrition analysis reports",
-             version="1.0.0")
-
+# Assign the logger instance returned by setup_logging to a variable
+logger = setup_logging()
 
 # Create the FastAPI app
 app = FastAPI(title="Attrition Analysis API", 
@@ -32,31 +31,11 @@ app = FastAPI(title="Attrition Analysis API",
              version="1.0.0")
 
 # Add CORS middleware with fixed syntax
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://automateroperting", 
-                  "https://sneha42-code.github.io", "*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("attrition_report.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+setup_cors(app)
 
+# Define base directories
 BASE_DIR = Path(__file__).parent.parent
-logger.info("BASE_DIR", BASE_DIR)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-logger.info("SCRIPT_DIR", SCRIPT_DIR)
-# Create directories
 UPLOAD_DIR = os.path.join(SCRIPT_DIR, "file_uploads")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "attrition_reports")
 
@@ -68,8 +47,6 @@ logger.info(f"OUTPUT_DIR: {OUTPUT_DIR}")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
-
 # Debug middleware to log requests
 @app.middleware("http")
 async def debug_request(request, call_next):
@@ -80,15 +57,9 @@ async def debug_request(request, call_next):
     print(f"Response: {response.status_code}")
     return response
 
-# Root endpoint
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Attrition Analysis API"}
-
-##Column name validation used
 
 
-
+# Helper functions for column validation
 def ensure_employee_name_column(df):
     """
     Ensures 'Employee Name' column exists, creating it from other ID columns if needed.
@@ -514,7 +485,7 @@ def add_function_analysis(doc, df, output_dir, report_time):
         
         # Create and save function plots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(17, 7))
-        sns.barplot(data=attrition_by_function.reset_index(), x='Function', y='Attrition Count', ax=ax1)
+        sns.barplot(data=attrition_by_function.reset_index(), x='Function', y='Attrition Count', hue='Function', ax=ax1, legend=False)
         ax1.set_title('Attrition Count by Function\n', fontsize=16, fontweight='bold')
         ax1.set_ylabel('Number of Employees', fontsize=14)
         ax1.set_xlabel('Function', fontsize=14)
@@ -808,6 +779,9 @@ def create_attrition_report(df, output_dir):
     """
     # Create document
     doc, report_time = create_report_document(output_dir)
+    today= datetime.now().strftime("%Y-%m-%d");
+    time = datetime.now().strftime("%H:%M");
+
     if doc is None:
         logger.error("Failed to create report document. Aborting report generation.")
         return False
@@ -844,9 +818,10 @@ def create_attrition_report(df, output_dir):
             doc.add_paragraph(f"Error generating {section_name} section. Section skipped.")
             doc.add_page_break()
     
+
     # Save the Word document
     try:
-        report_path = f"{output_dir}/Attrition_Report_{report_time}.docx"
+        report_path = f"{output_dir}/Attrition_Report_{today}_{time}.docx"
         doc.save(report_path)
         logger.info(f"Report saved to {report_path}")
         logger.info(f"Report generated with {successful_sections} of {len(report_sections)} sections completed successfully")
@@ -854,6 +829,11 @@ def create_attrition_report(df, output_dir):
     except Exception as e:
         logger.error(f"Failed to save report: {e}")
         return False, None, None
+
+# Root endpoint
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Attrition Analysis API"}
 
 # File upload endpoint
 @app.post("/api/upload/")
@@ -865,13 +845,6 @@ async def upload_file(file: UploadFile = File(...)):
         # Generate a unique ID for the uploaded file
         file_id = str(uuid.uuid4())
         file_location = f"{UPLOAD_DIR}/{file_id}_{file.filename}"
-        
-    #     #Vimal and Sneha Additional Codes
-
-    #    # generate_report(file_id, UPLOAD_DIR, output_dir="attrition_reports")
-    #     generate_report(file_id, UPLOAD_DIR, OUTPUT_DIR)  
-
-
 
         # Save the uploaded file
         with open(file_location, "wb") as buffer:
@@ -885,8 +858,6 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
-
-
 
 # Generate report endpoint
 @app.post("/api/generate-report/")
@@ -927,70 +898,6 @@ def generate_report(file_id: str, background_tasks: BackgroundTasks):
     except Exception as e:
         logger.error(f"Report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
-
-
-
-# #shit code begins
-
-
-def generate_report(file_id, upload_dir="uploads", output_dir="attrition_reports"):
-    """
-    Generate an attrition report for the uploaded file
-    
-    Parameters:
-    - file_id (str): Unique identifier for the uploaded file
-    - upload_dir (str): Directory where uploaded files are stored
-    - output_dir (str): Directory where reports will be saved
-    
-    Returns:
-    - dict: Report generation result containing success status and file paths
-    """
-    try:
-        # Find the file with the given ID
-        files = [f for f in os.listdir(upload_dir) if f.startswith(f"{file_id}_")]
-        
-        if not files:
-            print(f"Error: File not found with ID {file_id}")
-            return {"status": "error", "message": "File not found. Please upload the file first."}
-        
-        file_path = f"{upload_dir}/{files[0]}"
-        report_dir = f"{output_dir}/{file_id}"
-        os.makedirs(report_dir, exist_ok=True)
-        
-        # Load data
-        df = load_data(file_path)
-        if df is None:
-            print(f"Error: Failed to load data from {file_path}")
-            return {"status": "error", "message": "Failed to load data from the uploaded file."}
-            
-        # Generate report
-        success, report_path, report_time = create_attrition_report(df, report_dir)
-        
-        if success and report_path:
-            result = {
-                "status": "success",
-                "message": "Report generated successfully",
-                "file_id": file_id,
-                "report_file": os.path.basename(report_path),
-                "report_path": report_path,
-                "download_url": f"/download/{file_id}/{os.path.basename(report_path)}"
-            }
-            print(f"Success: Report generated at {report_path}")
-            return result
-        else:
-            print("Error: Failed to generate report")
-            return {"status": "error", "message": "Failed to generate report."}
-            
-    except Exception as e:
-        print(f"Error generating report: {e}")
-        return {"status": "error", "message": f"Report generation failed: {str(e)}"}
-
-
-
-
-#shit code ends
-
-
 
 # Download report endpoint
 @app.get("/api/download/")
