@@ -25,4 +25,4 @@ COPY . .
 EXPOSE 8000
 
 # Command to run the FastAPI application
-CMD ["uvicorn", "src.api_report_analysis:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
