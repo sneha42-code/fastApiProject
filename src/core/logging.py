@@ -1,4 +1,5 @@
 import logging
+from src.core.config import settings
 
 def setup_logging():
     """

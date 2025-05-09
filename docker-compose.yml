@@ -13,7 +13,7 @@ services:
     build: .
 
     # Command to run the FastAPI application using uvicorn
-    command: uvicorn src.api_report_analysis:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
     # Restart the container automatically if it stops
     restart: always
