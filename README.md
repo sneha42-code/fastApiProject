@@ -1,1 +1,2 @@
 # fastApiProject
+# sturctured folder
