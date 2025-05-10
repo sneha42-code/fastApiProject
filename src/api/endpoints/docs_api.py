@@ -1,12 +1,39 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import FileResponse
 from src.services.report_generator import generate_attrition_report
 from src.services.data_processor import load_data
+from src.utils.file_handlers import save_upload_file
 from src.api.dependencies import get_upload_dir, get_output_dir, get_logger
 import os
+import uuid
 
 router = APIRouter()
 
-@router.post("/generate-report/")
+@router.post("/upload-forDocs/")
+async def upload_file(
+    file: UploadFile = File(...),
+    upload_dir: str = Depends(get_upload_dir),
+    logger = Depends(get_logger)
+):
+    """
+    Upload an Excel file containing HRIS data for attrition analysis
+    """
+    try:
+        file_id = str(uuid.uuid4())
+        file_location = f"{upload_dir}/{file_id}_{file.filename}"
+        
+        save_upload_file(file, file_location)
+        
+        return {
+            "file_id": file_id,
+            "filename": file.filename,
+            "message": "File uploaded successfully. You can now generate a report."
+        }
+    except Exception as e:
+        logger.error(f"File upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+@router.post("/generate-report-forDocs/")
 def generate_report(
     file_id: str,
     background_tasks: BackgroundTasks,
@@ -50,3 +77,28 @@ def generate_report(
     except Exception as e:
         logger.error(f"Report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+
+@router.get("/download-forDocs/")
+async def download_report(
+    file_id: str,
+    filename: str,
+    output_dir: str = Depends(get_output_dir),
+    logger = Depends(get_logger)
+):
+    """
+    Download a generated report
+    """
+    try:
+        report_path = f"{output_dir}/{file_id}/{filename}"
+        
+        if not os.path.exists(report_path):
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        return FileResponse(
+            path=report_path,
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    except Exception as e:
+        logger.error(f"Download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")

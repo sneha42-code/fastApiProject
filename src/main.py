@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.logging import setup_logging
 from src.core.cors import setup_cors
-from src.api.endpoints import upload, report, health, download
+from src.api.endpoints import excel_api, health,  docs_api , html_api
 
 # Initialize logging
 logger = setup_logging()
@@ -20,9 +20,9 @@ setup_cors(app)
 
 # Include routers
 app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(upload.router, prefix="/api", tags=["upload"])
-app.include_router(report.router, prefix="/api", tags=["report"])
-app.include_router(download.router, prefix="/api", tags=["download"])
+app.include_router(docs_api.router, prefix="/api", tags=["docs"])
+app.include_router(excel_api.router, prefix="/api", tags=["excel"])
+app.include_router(html_api.router, prefix="/api", tags=["html"])
 
 # Debug middleware
 @app.middleware("http")
