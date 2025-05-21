@@ -5,7 +5,7 @@ import os
 import uuid
 import shutil
 
-from src.excel import create_excel_attrition_report, load_data
+from src.services.excel_creator import create_excel_attrition_report, load_data
 
 
 

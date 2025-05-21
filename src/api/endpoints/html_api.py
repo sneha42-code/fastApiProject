@@ -7,7 +7,7 @@ import os
 import uuid
 import shutil
 
-from src.html import ReportResponse, UploadResponse, generate_html_report,load_data
+from src.services.html_creator import ReportResponse, UploadResponse, generate_html_report,load_data
 
 router = APIRouter()
 UPLOAD_DIR = get_upload_dir()
