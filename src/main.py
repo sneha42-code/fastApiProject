@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.logging import setup_logging
 from src.core.cors import setup_cors
-from src.api.endpoints import excel_api, health,  docs_api , html_api
+from src.api.endpoints import excel_api, health,  docs_api , html_api ,slicer_api
 
 # Initialize logging
 logger = setup_logging()
@@ -19,11 +19,12 @@ app = FastAPI(
 setup_cors(app)
 
 # Include routers
-app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(docs_api.router, prefix="/api", tags=["docs"])
-app.include_router(excel_api.router, prefix="/api", tags=["excel"])
-app.include_router(html_api.router, prefix="/api", tags=["html"])
-
+app.include_router(health.router, prefix="/api/v1", tags=["health"])
+app.include_router(docs_api.router, prefix="/api/v1", tags=["docs"])
+app.include_router(excel_api.router, prefix="/api/v1", tags=["excel"])
+app.include_router(html_api.router, prefix="/api/v1", tags=["html"])
+app.include_router(slicer_api.router, prefix="/api/v1", tags=["slicer"])
+# app.include_router(predictive_api.router, prefix="/api/v1", tags=["predictive"])
 # Debug middleware
 @app.middleware("http")
 async def debug_request(request, call_next):
