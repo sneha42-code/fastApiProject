@@ -9,3 +9,6 @@ def get_upload_dir():
 
 def get_output_dir():
     return settings.OUTPUT_DIR
+
+def get_images_dir():
+    return settings.IMAGES_DIR

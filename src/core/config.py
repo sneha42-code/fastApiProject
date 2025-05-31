@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent.parent
     UPLOAD_DIR: str = str(BASE_DIR / "file_uploads")
     OUTPUT_DIR: str = str(BASE_DIR / "attrition_reports")
+    IMAGES_DIR : str =str(BASE_DIR / "images_reports")
     
     class Config:
         env_file = ".env"
