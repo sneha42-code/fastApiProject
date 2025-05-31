@@ -12,7 +12,8 @@ COPY requirements.txt ./
 
 RUN mkdir -p /app/file_uploads
 RUN mkdir -p /app/attrition_reports
-RUN chmod 777 /app/file_uploads /app/attrition_reports  # Set permissions if needed
+RUN mkdir -p /app/images_reports
+RUN chmod 777 /app/file_uploads /app/attrition_reports  /app/images_reports # Set permissions if needed
 
 
 # Install the required Python packages
