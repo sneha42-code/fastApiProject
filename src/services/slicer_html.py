@@ -13,11 +13,13 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from src.core.logging import setup_logging
+# Placeholder for setup_logging (replace with actual implementation if available)
+def setup_logging():
+    logging.basicConfig(level=logging.INFO)
+    return logging.getLogger(__name__)
 
 # Initialize logging
 logger = setup_logging()
-
 
 # Response models
 class UploadResponse(BaseModel):
@@ -585,7 +587,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <div class="d-flex justify-content-end align-items-end h-100">
+                            <div class="d-flex justify-content-end align-items-center h-100">
                                 <p id="filterSummary" class="text-muted mb-0">No filters applied</p>
                             </div>
                         </div>
@@ -664,13 +666,12 @@ def generate_interactive_html_report(df, output_dir, file_id):
                     <div class="col-md-7">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="card">
+                                <div injecting class="card">
                                     <div class="card-header">Attrition Count by Gender</div>
                                     <div class="card-body">
                                         <div class="chart-container">
                                             <canvas id="genderBarChart"></canvas>
                                         </div>
-                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -718,13 +719,13 @@ def generate_interactive_html_report(df, output_dir, file_id):
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="card">
-                                    <div class="card-header">Attrition Count by Location Ð¿Ñ€Ð¸Ð±Ð»Ð¸Ð·Ð¸Ñ‚ÐµÐ»ÑŒÐ½Ð¾</div>
+                                    <div class="card-header">Attrition Count by Location</div>
                                     <div class="card-body">
                                         <div class="chart-container">
                                             <canvas id="locationBarChart"></canvas>
                                         </div>
-                                    </div>
                                 </div>
+                            </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="card">
@@ -766,7 +767,8 @@ def generate_interactive_html_report(df, output_dir, file_id):
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </td>
+                    <div>
                     <div class="col-md-7">
                         <div class="row">
                             <div class="col-md-6">
@@ -966,8 +968,8 @@ def generate_interactive_html_report(df, output_dir, file_id):
         
         // Chart color palette
         const chartColors = [
-            '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', 
-            '#F79646', '#6D597A', '#355070', '#6B705C', '#B56576'
+            '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6',
+            '#F79646', '#6DAA', '#355070', '#6B705C', '#B56576'
         ];
         
         // Global variables for data management
@@ -979,9 +981,9 @@ def generate_interactive_html_report(df, output_dir, file_id):
         const activeFilters = {
             gender: [],
             location: [],
-            function: [],
+            functionFilter: [],
             grade: [],
-            year: [],
+            yearFilter: [],
             tenure: []
         };
         
@@ -999,53 +1001,53 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
             
             populateFilterOptions(data);
-            setupFilterEventHandlers();
+            setupFilterEvents();
             updateDashboard(filteredData);
             setupScrollAnimations();
         }
         
         // Populate filter options from data
         function populateFilterOptions(data) {
-            const genderFilter = document.getElementById('genderFilter');
+            const genderItems = document.getElementById('genderFilter');
             data.slicers.gender.forEach(item => {
                 const option = new Option(item.label, item.value);
-                genderFilter.appendChild(option);
+                genderItems.appendChild(option);
             });
             
-            const locationFilter = document.getElementById('locationFilter');
-            data.slicers.location.forEach(item => {
+            const locationItems = document.getElementById('locationFilter');
+            data.slicers.locationItems.forEach(item => {
                 const option = new Option(item.label, item.value);
-                locationFilter.appendChild(option);
+                locationItems.appendChild(option);
             });
             
-            const functionFilter = document.getElementById('functionFilter');
-            data.slicers.function.forEach(item => {
+            const functionItems = document.getElementById('functionFilter');
+            functionItems.slicers.functionItems.forEach(item => {
                 const option = new Option(item.label, item.value);
-                functionFilter.appendChild(option);
+                functionItems.appendChild(option);
             });
             
-            const gradeFilter = document.getElementById('gradeFilter');
+            const gradeItems = document.getElementById('gradeFilter');
             data.slicers.grade.forEach(item => {
                 const option = new Option(item.label, item.value);
-                gradeFilter.appendChild(option);
+                gradeItems.appendChild(option);
             });
             
-            const yearFilter = document.getElementById('yearFilter');
+            const yearItems = document.getElementById('yearFilter');
             data.slicers.year.forEach(item => {
                 const option = new Option(item.label, item.value);
-                yearFilter.appendChild(option);
+                yearItems.appendChild(option);
             });
             
-            const tenureFilter = document.getElementById('tenureFilter');
-            const tenureBands = data.tenure.map(item => item.category);
-            tenureBands.forEach(tenure => {
-                const option = new Option(tenure, tenure);
-                tenureFilter.appendChild(option);
+            const tenureItems = document.getElementById('tenureFilter');
+            const tenure_years = data.tenure.map(row => row.category);
+            tenure_years.forEach(year => {
+                const option = new Option(year, year);
+                tenureItems.appendChild(option);
             });
         }
         
         // Set up filter event handlers
-        function setupFilterEventHandlers() {
+        function setupFilterEvents() {
             $('#genderFilter').on('change', function() {
                 activeFilters.gender = $(this).val() || [];
                 applyFilters();
@@ -1057,7 +1059,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
             
             $('#functionFilter').on('change', function() {
-                activeFilters.function = $(this).val() || [];
+                activeFilters.functionFilter = $(this).val() || [];
                 applyFilters();
             });
             
@@ -1067,7 +1069,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
             
             $('#yearFilter').on('change', function() {
-                activeFilters.year = $(this).val() || [];
+                activeFilters.yearFilter = $(this).val() || [];
                 applyFilters();
             });
             
@@ -1077,18 +1079,32 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
             
             $('#clearAllFilters').on('click', function() {
-                $('#genderFilter').val(null).trigger('change');
-                $('#locationFilter').val(null).trigger('change');
-                $('#functionFilter').val(null).trigger('change');
-                $('#gradeFilter').val(null).trigger('change');
-                $('#yearFilter').val(null).trigger('change');
-                $('#tenureFilter').val(null).trigger('change');
+                // Clear all Select2 filters
+                const filters = [
+                    '#genderFilter',
+                    '#locationFilter',
+                    '#functionFilter',
+                    '#gradeFilter',
+                    '#yearFilter',
+                    '#tenureFilter'
+                ];
                 
+                filters.forEach(filter => {
+                    const $filter = $(filter);
+                    $filter.val(null); // Clear programmatically
+                    $filter.trigger('change.select2'); // Trigger Select2-specific change
+                    $filter.select2('close'); // Ensure dropdown is closed
+                });
+                
+                // Reset activeFilters
                 for (const key in activeFilters) {
                     activeFilters[key] = [];
                 }
                 
+                // Reset filteredData to originalData
                 filteredData = JSON.parse(JSON.stringify(originalData));
+                
+                // Update dashboard and filter summary
                 updateDashboard(filteredData);
                 updateFilterSummary();
             });
@@ -1096,6 +1112,18 @@ def generate_interactive_html_report(df, output_dir, file_id):
         
         // Apply all active filters to data
         function applyFilters() {
+            // Check if any filters are applied
+            const hasFilters = Object.values(activeFilters).some(filters => filters.length > 0);
+            
+            // If no filters, reset to original data
+            if (!hasFilters) {
+                filteredData = JSON.parse(JSON.stringify(originalData));
+                updateOverallStatistics();
+                updateFilterSummary();
+                updateDashboard(filteredData);
+                return;
+            }
+            
             filteredData = JSON.parse(JSON.stringify(originalData));
             
             if (activeFilters.gender.length > 0) {
@@ -1110,9 +1138,9 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 );
             }
             
-            if (activeFilters.function.length > 0) {
-                filteredData.function = originalData.function.filter(row => 
-                    activeFilters.function.includes(row.category)
+            if (activeFilters.functionFilter.length > 0) {
+                filteredData.functionFilter = originalData.functionFilter.filter(row => 
+                    activeFilters.functionFilter.includes(row.category)
                 );
             }
             
@@ -1128,15 +1156,15 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 );
             }
             
-            if (activeFilters.year.length > 0) {
+            if (activeFilters.yearFilter.length > 0) {
                 filteredData.quarterly = originalData.quarterly.filter(row => {
-                    const yearMatch = row.period.match(/^(\\d{4})/);
-                    return yearMatch && activeFilters.year.includes(yearMatch[1]);
+                    const yearMatch = row.period.match(/^(\d{4})/);
+                    return yearMatch && activeFilters.yearFilter.includes(yearMatch[1]);
                 });
                 
                 filteredData.monthly = originalData.monthly.filter(row => {
-                    const yearMatch = row.period.match(/^(\\d{4})/);
-                    return yearMatch && activeFilters.year.includes(yearMatch[1]);
+                    const yearMatch = row.period.match(/^(\d{4})/);
+                    return yearMatch && activeFilters.yearFilter.includes(yearMatch[1]);
                 });
             }
             
@@ -1181,8 +1209,8 @@ def generate_interactive_html_report(df, output_dir, file_id):
             if (activeFilters.location.length > 0) {
                 filterTexts.push(`Location: ${activeFilters.location.length} selected`);
             }
-            if (activeFilters.function.length > 0) {
-                filterTexts.push(`Function: ${activeFilters.function.length} selected`);
+            if (activeFilters.functionFilter.length > 0) {
+                filterTexts.push(`Function: ${activeFilters.functionFilter.length} selected`);
             }
             if (activeFilters.grade.length > 0) {
                 filterTexts.push(`Grade: ${activeFilters.grade.length} selected`);
@@ -1190,8 +1218,8 @@ def generate_interactive_html_report(df, output_dir, file_id):
             if (activeFilters.tenure.length > 0) {
                 filterTexts.push(`Tenure: ${activeFilters.tenure.length} selected`);
             }
-            if (activeFilters.year.length > 0) {
-                filterTexts.push(`Year: ${activeFilters.year.join(', ')}`);
+            if (activeFilters.yearFilter.length > 0) {
+                filterTexts.push(`Year: ${activeFilters.yearFilter.join(', ')}`);
             }
             
             filterSummary.textContent = `Filters applied: ${filterTexts.join(' | ')}`;
@@ -1202,7 +1230,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
             updateOverallSection(data.overall);
             updateGenderSection(data.gender);
             updateLocationSection(data.location);
-            updateFunctionSection(data.function);
+            updateFunctionSection(data.functionFilter);
             updateTenureSection(data.tenure);
             updateGradeSection(data.grade);
             updateTrendSection(data.quarterly, data.monthly);
@@ -1759,4 +1787,3 @@ def generate_interactive_html_report(df, output_dir, file_id):
     except Exception as e:
         logger.error(f"Failed to generate interactive HTML dashboard: {e}")
         return False, None, None
-

@@ -7,13 +7,12 @@ import uuid
 import shutil
 from pathlib import Path
 
-from src.services.slicer_html import ReportResponse, UploadResponse,load_data,generate_interactive_html_report
+from src.services.slicer_html import ReportResponse, UploadResponse, load_data, generate_interactive_html_report
 
 router = APIRouter()
 UPLOAD_DIR = Path(get_upload_dir())
 OUTPUT_DIR = Path(get_output_dir())
 logger = get_logger()
-
 
 # FastAPI endpoints
 @router.post("/slicer-upload/", response_model=UploadResponse)
@@ -111,7 +110,7 @@ async def get_upload_form():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Attrition Analysis Dashboard</title>
+        <title>Attrition Analysis Upload</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {
@@ -135,71 +134,74 @@ async def get_upload_form():
                 background-color: #4F81BD;
                 border-color: #4F81BD;
             }
+            #statusMessage {
+                display: none;
+                margin-top: 20px;
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">Upload Excel File for Attrition Analysis</h3>
-                </div>
-                <div class="card-body">
-                    <form id="uploadForm" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="file" class="form-label">Select Excel File (.xlsx, .xls)</label>
-                            <input class="form-control" type="file" id="file" name="file" accept=".xlsx,.xls" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Upload and Generate Report</button>
-                    </form>
-                    <div id="status" class="mt-3"></div>
-                </div>
+            <div class="card p-4">
+                <h2 class="text-center mb-4">Upload Excel File for Attrition Analysis</h2>
+                <form id="uploadForm">
+                    <div class="mb-3">
+                        <label for="fileInput" class="form-label">Select Excel File (.xlsx, .xls)</label>
+                        <input class="form-control" type="file" id="fileInput" name="file" accept=".xlsx,.xls" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Upload and Generate Report</button>
+                </form>
+                <div id="statusMessage" class="alert"></div>
             </div>
         </div>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const statusDiv = document.getElementById('status');
-                
-                statusDiv.innerHTML = '<div class="alert alert-info">Uploading file...</div>';
-                
-                try {
-                    const uploadResponse = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
+            $(document).ready(function() {
+                $('#uploadForm').on('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData();
+                    const fileInput = $('#fileInput')[0].files[0];
+                    formData.append('file', fileInput);
+                    
+                    const statusMessage = $('#statusMessage');
+                    statusMessage.removeClass('alert-success alert-danger').hide();
+                    
+                    $.ajax({
+                        url: '/slicer-upload/',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            const fileId = response.file_id;
+                            $.ajax({
+                                url: '/slicer-generate-report',
+                                type: 'POST',
+                                data: { file_id: fileId },
+                                success: function(reportResponse) {
+                                    statusMessage.addClass('alert-success')
+                                        .text(`Report generated! Download it here: ${reportResponse.report_file}`)
+                                        .append(` <a href="${reportResponse.download_url}" class="alert-link">Download</a>`)
+                                        .show();
+                                },
+                                error: function(xhr) {
+                                    statusMessage.addClass('alert-danger')
+                                        .text('Error generating report: ' + (xhr.responseJSON?.detail || 'Unknown error'))
+                                        .show();
+                                }
+                            });
+                        },
+                        error: function(xhr) {
+                            statusMessage.addClass('alert-danger')
+                                .text('Error uploading file: ' + (xhr.responseJSON?.detail || 'Unknown error'))
+                                .show();
+                        }
                     });
-                    
-                    if (!uploadResponse.ok) {
-                        throw new Error('File upload failed');
-                    }
-                    
-                    const uploadResult = await uploadResponse.json();
-                    statusDiv.innerHTML = '<div class="alert alert-success">File uploaded successfully. Generating report...</div>';
-                    
-                    const reportResponse = await fetch('/slicer-generate-report', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'routerlication/x-www-form-urlencoded' },
-                        body: `file_id=${uploadResult.file_id}`
-                    });
-                    
-                    if (!reportResponse.ok) {
-                        throw new Error('Report generation failed');
-                    }
-                    
-                    const reportResult = await reportResponse.json();
-                    statusDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            Report generated successfully!
-                            <a href="${reportResult.download_url}" class="btn btn-primary btn-sm mt-2">Download Report</a>
-                        </div>
-                    `;
-                } catch (error) {
-                    statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-                }
+                });
             });
         </script>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content)
-
