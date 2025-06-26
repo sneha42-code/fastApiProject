@@ -15,10 +15,10 @@ OUTPUT_DIR = Path(get_output_dir())
 logger = get_logger()
 
 # FastAPI endpoints
-@router.post("/slicer-upload/", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+@router.post("/slicer/upload/", response_model=UploadResponse)
+async def upload_slicer_file(file: UploadFile = File(...)):
     """
-    Upload an Excel file for processing
+    Upload an Excel file for slicer processing
     """
     try:
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -39,10 +39,10 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
-@router.post("/slicer-generate-report", response_model=ReportResponse)
-async def generate_report(file_id: str = Form(...), background_tasks: BackgroundTasks = None):
+@router.post("/slicer/generate-report/", response_model=ReportResponse)
+async def generate_slicer_report(file_id: str = Form(...), background_tasks: BackgroundTasks = None):
     """
-    Generate attrition analysis report from uploaded file
+    Generate attrition analysis report from uploaded file (slicer)
     """
     try:
         # Find the uploaded file
@@ -78,16 +78,16 @@ async def generate_report(file_id: str = Form(...), background_tasks: Background
             message="Report generated successfully",
             file_id=file_id,
             report_file=report_filename,
-            download_url=f"/slicer-download/{file_id}/{report_filename}"
+            download_url=f"/slicer/download/{file_id}/{report_filename}"
         )
     except Exception as e:
         logger.error(f"Error generating report: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
-@router.get("/slicer-download/{file_id}/{filename}", response_class=FileResponse)
-async def download_report(file_id: str, filename: str):
+@router.get("/slicer/download/{file_id}/{filename}", response_class=FileResponse)
+async def download_slicer_report(file_id: str, filename: str):
     """
-    Download the generated report
+    Download the generated slicer report
     """
     report_path = OUTPUT_DIR / file_id / filename
     if not report_path.exists():
@@ -99,10 +99,10 @@ async def download_report(file_id: str, filename: str):
         media_type='text/html'
     )
 
-@router.get("/", response_class=HTMLResponse)
-async def get_upload_form():
+@router.get("/slicer/", response_class=HTMLResponse)
+async def get_slicer_upload_form():
     """
-    Serve the upload form
+    Serve the slicer upload form
     """
     html_content = """
     <!DOCTYPE html>
@@ -168,7 +168,7 @@ async def get_upload_form():
                     statusMessage.removeClass('alert-success alert-danger').hide();
                     
                     $.ajax({
-                        url: '/slicer-upload/',
+                        url: '/slicer/upload/',
                         type: 'POST',
                         data: formData,
                         processData: false,
@@ -176,7 +176,7 @@ async def get_upload_form():
                         success: function(response) {
                             const fileId = response.file_id;
                             $.ajax({
-                                url: '/slicer-generate-report',
+                                url: '/slicer/generate-report/',
                                 type: 'POST',
                                 data: { file_id: fileId },
                                 success: function(reportResponse) {

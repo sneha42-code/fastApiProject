@@ -14,8 +14,8 @@ UPLOAD_DIR = get_upload_dir()
 OUTPUT_DIR = get_output_dir()
 logger = get_logger()
 
-@router.post("/upload-forExcel/")
-async def upload_file(file: UploadFile = File(...)):
+@router.post("/excel/upload/")
+async def upload_excel_file(file: UploadFile = File(...)):
     """Upload an Excel file containing HRIS data for attrition analysis"""
     try:
         # Generate a unique ID for the uploaded file
@@ -35,8 +35,8 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
-@router.post("/generate-report-forExcel/")
-async def generate_report(file_id: str, background_tasks: BackgroundTasks):
+@router.post("/excel/generate-report/")
+async def generate_excel_report(file_id: str, background_tasks: BackgroundTasks):
     """Generate an attrition report for the uploaded file"""
     try:
         # Find the file with the given ID
@@ -63,7 +63,7 @@ async def generate_report(file_id: str, background_tasks: BackgroundTasks):
                 "message": "Report generated successfully",
                 "file_id": file_id,
                 "report_file": os.path.basename(report_path),
-                "download_url": f"/download/{file_id}/{os.path.basename(report_path)}"
+                "download_url": f"/excel/download/{file_id}/{os.path.basename(report_path)}"
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to generate report.")
@@ -72,8 +72,8 @@ async def generate_report(file_id: str, background_tasks: BackgroundTasks):
         logger.error(f"Report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
 
-@router.get("/download-forExcel/{file_id}/{filename}")
-async def download_report(file_id: str, filename: str):
+@router.get("/excel/download/{file_id}/{filename}")
+async def download_excel_report(file_id: str, filename: str):
     """Download a generated report"""
     try:
         report_path = f"{OUTPUT_DIR}/{file_id}/{filename}"

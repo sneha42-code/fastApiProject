@@ -10,8 +10,8 @@ import uuid
 
 router = APIRouter()
 
-@router.post("/upload-predictive/")
-async def upload_file_predictive(
+@router.post("/predictive/upload/")
+async def upload_predictive_file(
     file: UploadFile = File(...),
     upload_dir: str = Depends(get_upload_dir),
     logger = Depends(get_logger)
@@ -34,7 +34,7 @@ async def upload_file_predictive(
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
-@router.post("/generate-predictive-report/")
+@router.post("/predictive/generate-report/")
 def generate_predictive_report(
     file_id: str,
     background_tasks: BackgroundTasks,
@@ -70,7 +70,7 @@ def generate_predictive_report(
                 "message": "Predictive report generated successfully",
                 "file_id": file_id,
                 "report_file": os.path.basename(report_path),
-                "download_url": f"/api/download-predictive/?file_id={file_id}&filename={os.path.basename(report_path)}"
+                "download_url": f"/predictive/download/?file_id={file_id}&filename={os.path.basename(report_path)}"
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to generate predictive report.")
@@ -79,7 +79,7 @@ def generate_predictive_report(
         logger.error(f"Predictive report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Predictive report generation failed: {str(e)}")
 
-@router.post("/generate-predictive-html/")
+@router.post("/predictive/generate-html/")
 def generate_predictive_html(
     file_id: str,
     background_tasks: BackgroundTasks,
@@ -115,8 +115,8 @@ def generate_predictive_html(
                 "message": "Predictive HTML report generated successfully",
                 "file_id": file_id,
                 "report_file": report_filename,
-                "download_url": f"/api/download-predictive-html/{file_id}/{report_filename}",
-                "view_url": f"/api/view-predictive/{file_id}/{report_filename}"
+                "download_url": f"/predictive/download-html/{file_id}/{report_filename}",
+                "view_url": f"/predictive/view/{file_id}/{report_filename}"
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to generate predictive HTML report.")
@@ -125,7 +125,7 @@ def generate_predictive_html(
         logger.error(f"Predictive HTML report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Predictive HTML report generation failed: {str(e)}")
 
-@router.get("/download-predictive/")
+@router.get("/predictive/download/")
 async def download_predictive_report(
     file_id: str,
     filename: str,
@@ -150,7 +150,7 @@ async def download_predictive_report(
         logger.error(f"Download error: {e}")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
-@router.get("/download-predictive-html/{file_id}/{filename}")
+@router.get("/predictive/download-html/{file_id}/{filename}")
 async def download_predictive_html_report(
     file_id: str, 
     filename: str,
@@ -175,7 +175,7 @@ async def download_predictive_html_report(
         logger.error(f"Download error: {e}")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
-@router.get("/view-predictive/{file_id}/{filename}", response_class=HTMLResponse)
+@router.get("/predictive/view/{file_id}/{filename}", response_class=HTMLResponse)
 async def view_predictive_report(
     file_id: str, 
     filename: str,
@@ -199,7 +199,7 @@ async def view_predictive_report(
         logger.error(f"View predictive report error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to view predictive report: {str(e)}")
 
-@router.get("/health-predictive")
+@router.get("/predictive/health")
 async def health_check_predictive():
     """Health check for predictive analytics service"""
     return {"status": "healthy", "service": "predictive-analytics"}

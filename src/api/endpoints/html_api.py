@@ -15,7 +15,7 @@ OUTPUT_DIR = get_output_dir()
 logger = get_logger()
 
 
-@router.post("/upload/", response_model=UploadResponse)
+@router.post("/html/upload/", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
     """
     Upload an Excel file containing HRIS data for attrition analysis
@@ -38,7 +38,7 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
-@router.post("/generate-report/", response_model=ReportResponse)
+@router.post("/html/generate-report/", response_model=ReportResponse)
 async def generate_report(file_id: str, background_tasks: BackgroundTasks):
     """
     Generate an interactive HTML attrition report for the uploaded file
@@ -66,7 +66,7 @@ async def generate_report(file_id: str, background_tasks: BackgroundTasks):
                 "message": "Report generated successfully",
                 "file_id": file_id,
                 "report_file": report_filename,
-                "download_url": f"/download/{file_id}/{report_filename}"
+                "download_url": f"/html/download/{file_id}/{report_filename}"
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to generate report.")
@@ -75,7 +75,7 @@ async def generate_report(file_id: str, background_tasks: BackgroundTasks):
         logger.error(f"Report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
 
-@router.get("/download/{file_id}/{filename}")
+@router.get("/html/download/{file_id}/{filename}")
 async def download_report(file_id: str, filename: str):
     """
     Download a generated HTML report
@@ -95,7 +95,7 @@ async def download_report(file_id: str, filename: str):
         logger.error(f"Download error: {e}")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
-@router.get("/view/{file_id}/{filename}", response_class=HTMLResponse)
+@router.get("/html/view/{file_id}/{filename}", response_class=HTMLResponse)
 async def view_report(file_id: str, filename: str):
     """
     View the HTML report directly in the browser
@@ -116,4 +116,4 @@ async def view_report(file_id: str, filename: str):
     
     
     # Serve static files (reports directory)
-router.mount("/reports", StaticFiles(directory=OUTPUT_DIR), name="reports")
+router.mount("/html/reports", StaticFiles(directory=OUTPUT_DIR), name="reports")

@@ -9,8 +9,8 @@ import uuid
 
 router = APIRouter()
 
-@router.post("/upload-forDocs/")
-async def upload_file(
+@router.post("/docs/upload/")
+async def upload_docs_file(
     file: UploadFile = File(...),
     upload_dir: str = Depends(get_upload_dir),
     logger = Depends(get_logger)
@@ -33,8 +33,8 @@ async def upload_file(
         logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
-@router.post("/generate-report-forDocs/")
-def generate_report(
+@router.post("/docs/generate-report/")
+def generate_docs_report(
     file_id: str,
     background_tasks: BackgroundTasks,
     upload_dir: str = Depends(get_upload_dir),
@@ -69,7 +69,7 @@ def generate_report(
                 "message": "Report generated successfully",
                 "file_id": file_id,
                 "report_file": os.path.basename(report_path),
-                "download_url": f"/api/download/?file_id={file_id}&filename={os.path.basename(report_path)}"
+                "download_url": f"/docs/download/?file_id={file_id}&filename={os.path.basename(report_path)}"
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to generate report.")
@@ -78,8 +78,8 @@ def generate_report(
         logger.error(f"Report generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
 
-@router.get("/download-forDocs/")
-async def download_report(
+@router.get("/docs/download/")
+async def download_docs_report(
     file_id: str,
     filename: str,
     output_dir: str = Depends(get_output_dir),
