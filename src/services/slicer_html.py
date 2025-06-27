@@ -2,24 +2,9 @@ import pandas as pd
 from datetime import datetime
 import os
 import json
-import logging
 import numpy as np
 from pathlib import Path
-import uuid
-import shutil
-from typing import List, Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Response
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
-# Placeholder for setup_logging (replace with actual implementation if available)
-def setup_logging():
-    logging.basicConfig(level=logging.INFO)
-    return logging.getLogger(__name__)
-
-# Initialize logging
-logger = setup_logging()
 
 # Response models
 class UploadResponse(BaseModel):
@@ -34,8 +19,7 @@ class ReportResponse(BaseModel):
     report_file: str
     download_url: str
 
-# Data analysis functions
-def load_data(file_path):
+def load_data(file_path, logger):
     """
     Load and prepare the data
     """
@@ -104,7 +88,6 @@ def calculate_overall_statistics(df):
             'attritionRate': attrition_rate
         }
     except Exception as e:
-        logger.error(f"Error calculating overall statistics: {e}")
         return None
 
 def calculate_gender_analysis(df):
@@ -132,7 +115,6 @@ def calculate_gender_analysis(df):
         
         return result
     except Exception as e:
-        logger.error(f"Error in gender analysis: {e}")
         return []
 
 def calculate_location_analysis(df):
@@ -166,7 +148,6 @@ def calculate_location_analysis(df):
         
         return result
     except Exception as e:
-        logger.error(f"Error in location analysis: {e}")
         return []
 
 def calculate_function_analysis(df):
@@ -200,7 +181,6 @@ def calculate_function_analysis(df):
         
         return result
     except Exception as e:
-        logger.error(f"Error in function analysis: {e}")
         return []
 
 def calculate_tenure_analysis(df):
@@ -235,7 +215,6 @@ def calculate_tenure_analysis(df):
         
         return result
     except Exception as e:
-        logger.error(f"Error in tenure analysis: {e}")
         return []
 
 def calculate_grade_analysis(df):
@@ -269,7 +248,6 @@ def calculate_grade_analysis(df):
         
         return result
     except Exception as e:
-        logger.error(f"Error in grade analysis: {e}")
         return []
 
 def calculate_trend_analysis(df):
@@ -312,7 +290,6 @@ def calculate_trend_analysis(df):
         
         return quarterly_result, monthly_result
     except Exception as e:
-        logger.error(f"Error in trend analysis: {e}")
         return [], []
 
 def extract_slicer_dimensions(df):
@@ -354,10 +331,9 @@ def extract_slicer_dimensions(df):
         
         return slicer_data
     except Exception as e:
-        logger.error(f"Error extracting slicer dimensions: {e}")
         return {}
 
-def generate_interactive_html_report(df, output_dir, file_id):
+def generate_interactive_html_report(df, output_dir, file_id, logger):
     """
     Generate interactive HTML report with slicers from the analysis data
     """
@@ -365,9 +341,14 @@ def generate_interactive_html_report(df, output_dir, file_id):
         # Create timestamp for the report
         report_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         
+        # Clean file_id to avoid any issues
+        clean_file_id = str(file_id).strip().replace('"', '').replace("'", '')
+        
         # Create output directory for this report
-        report_dir = f"{output_dir}/{file_id}"
+        report_dir = os.path.join(output_dir, clean_file_id)
         os.makedirs(report_dir, exist_ok=True)
+        
+        logger.info(f"Creating report in directory: {report_dir}")
         
         # Calculate all analyses
         overall_stats = calculate_overall_statistics(df)
@@ -394,8 +375,39 @@ def generate_interactive_html_report(df, output_dir, file_id):
             'slicers': slicer_data
         }
         
-        # HTML template
-        html_template = '''<!DOCTYPE html>
+        # Get HTML template
+        html_template = get_interactive_dashboard_template()
+        
+        # Replace data placeholder with actual data
+        final_html = html_template.replace('REPLACE_WITH_DATA', json.dumps(report_data))
+        
+        # Save HTML file
+        report_filename = f"Interactive_Attrition_Dashboard_{report_time}.html"
+        html_path = os.path.join(report_dir, report_filename)
+        
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(final_html)
+        
+        logger.info(f"Interactive HTML dashboard saved to {html_path}")
+        
+        # Verify file was created
+        if os.path.exists(html_path):
+            logger.info(f"File verified to exist at: {html_path}")
+            return True, html_path, report_filename
+        else:
+            logger.error(f"File was not created at expected path: {html_path}")
+            return False, None, None
+            
+    except Exception as e:
+        logger.error(f"Failed to generate interactive HTML dashboard: {e}")
+        return False, None, None
+
+def get_interactive_dashboard_template():
+    """
+    Return the HTML template for the interactive dashboard
+    Note: In production, this should be loaded from a template file
+    """
+    return '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -425,21 +437,6 @@ def generate_interactive_html_report(df, output_dir, file_id):
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        .filter-title {
-            color: #004C99;
-            font-weight: bold;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-        .filter-section {
-            margin-bottom: 15px;
-        }
-        .filter-label {
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: #495057;
-        }
         .section-title {
             color: #004C99;
             font-weight: bold;
@@ -453,29 +450,15 @@ def generate_interactive_html_report(df, output_dir, file_id):
             border: none;
             border-radius: 8px;
         }
-        .card-header {
-            background-color: #EDF3FE;
-            border-bottom: 1px solid rgba(0,0,0,0.125);
-            font-weight: bold;
-            color: #004C99;
-            border-radius: 8px 8px 0 0 !important;
-        }
         .stat-card {
             background-color: #f8f9fa;
             border-left: 4px solid #004C99;
             transition: transform 0.3s ease;
         }
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
         .stat-value {
             font-size: 1.8rem;
             font-weight: bold;
             color: #004C99;
-        }
-        .stat-label {
-            color: #6c757d;
-            font-size: 0.9rem;
         }
         .chart-container {
             position: relative;
@@ -485,49 +468,9 @@ def generate_interactive_html_report(df, output_dir, file_id):
         .table th {
             background-color: #4F81BD;
             color: white;
-            position: sticky;
-            top: 0;
         }
         .table-striped tbody tr:nth-of-type(odd) {
             background-color: #EDF3FE;
-        }
-        .table-responsive {
-            max-height: 350px;
-            overflow-y: auto;
-        }
-        .select2-container--default .select2-selection--multiple {
-            border-color: #ced4da;
-        }
-        .select2-container--default.select2-container--focus .select2-selection--multiple {
-            border-color: #004C99;
-        }
-        .select2-container--default .select2-results__option--highlighted[aria-selected] {
-            background-color: #004C99;
-        }
-        .btn-primary {
-            background-color: #004C99;
-            border-color: #004C99;
-        }
-        .btn-primary:hover {
-            background-color: #4F81BD;
-            border-color: #4F81BD;
-        }
-        .btn-outline-primary {
-            color: #004C99;
-            border-color: #004C99;
-        }
-        .btn-outline-primary:hover {
-            background-color: #004C99;
-            color: white;
-        }
-        .animate-on-scroll {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-        .animate-on-scroll.visible {
-            opacity: 1;
-            transform: translateY(0);
         }
     </style>
 </head>
@@ -543,53 +486,35 @@ def generate_interactive_html_report(df, output_dir, file_id):
         <div class="row mb-4">
             <div class="col-12">
                 <div class="filter-panel">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="filter-title mb-0">Dashboard Filters</h4>
-                        <button id="clearAllFilters" class="btn btn-outline-primary btn-sm">Clear All Filters</button>
-                    </div>
+                    <h4 class="mb-3">Dashboard Filters</h4>
                     <div class="row">
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Gender</label>
-                            <select id="genderFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
+                        <div class="col-md-3">
+                            <label>Gender</label>
+                            <select id="genderFilter" class="form-control" multiple="multiple">
                             </select>
                         </div>
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Location</label>
-                            <select id="locationFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
+                        <div class="col-md-3">
+                            <label>Location</label>
+                            <select id="locationFilter" class="form-control" multiple="multiple">
                             </select>
                         </div>
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Function</label>
-                            <select id="functionFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
+                        <div class="col-md-3">
+                            <label>Function</label>
+                            <select id="functionFilter" class="form-control" multiple="multiple">
                             </select>
                         </div>
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Grade</label>
-                            <select id="gradeFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
+                        <div class="col-md-3">
+                            <label>Grade</label>
+                            <select id="gradeFilter" class="form-control" multiple="multiple">
                             </select>
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Year</label>
-                            <select id="yearFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
-                            </select>
-                        </div>
-                        <div class="col-md-3 filter-section">
-                            <label class="filter-label">Tenure Band</label>
-                            <select id="tenureFilter" class="form-control select2-multi" multiple="multiple">
-                                <!-- Will be populated by JavaScript -->
-                            </select>
+                        <div class="col-md-6">
+                            <button id="clearAllFilters" class="btn btn-outline-primary btn-sm">Clear All Filters</button>
                         </div>
                         <div class="col-md-6">
-                            <div class="d-flex justify-content-end align-items-center h-100">
-                                <p id="filterSummary" class="text-muted mb-0">No filters applied</p>
-                            </div>
+                            <p id="filterSummary" class="text-muted mb-0">No filters applied</p>
                         </div>
                     </div>
                 </div>
@@ -597,29 +522,26 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Overall Statistics Section -->
-        <div class="row animate-on-scroll">
+        <div class="row">
             <div class="col-12">
                 <h2 class="section-title">Overall Attrition Statistics</h2>
                 <div class="row">
                     <div class="col-md-4">
                         <div class="card stat-card p-3">
-                            <div class="stat-label">Total Employees</div>
+                            <div>Total Employees</div>
                             <div id="totalEmployees" class="stat-value">-</div>
-                            <div class="small">All employees in organization</div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="card stat-card p-3">
-                            <div class="stat-label">Total Exits</div>
+                            <div>Total Exits</div>
                             <div id="totalExits" class="stat-value">-</div>
-                            <div class="small">Employees who left</div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="card stat-card p-3">
-                            <div class="stat-label">Attrition Rate</div>
+                            <div>Attrition Rate</div>
                             <div id="attritionRate" class="stat-value">-</div>
-                            <div class="small">Percentage of employees who left</div>
                         </div>
                     </div>
                 </div>
@@ -639,7 +561,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Gender Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
                 <h2 class="section-title">Gender-wise Attrition</h2>
                 <div class="row">
@@ -647,31 +569,30 @@ def generate_interactive_html_report(df, output_dir, file_id):
                         <div class="card">
                             <div class="card-header">Gender Statistics</div>
                             <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped" id="genderTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Gender</th>
-                                                <th>Attrition Count</th>
-                                                <th>Total Employees</th>
-                                                <th>Attrition Rate %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
+                                <table class="table table-striped" id="genderTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Gender</th>
+                                            <th>Attrition Count</th>
+                                            <th>Total Employees</th>
+                                            <th>Attrition Rate %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-7">
                         <div class="row">
                             <div class="col-md-6">
-                                <div injecting class="card">
+                                <div class="card">
                                     <div class="card-header">Attrition Count by Gender</div>
                                     <div class="card-body">
                                         <div class="chart-container">
                                             <canvas id="genderBarChart"></canvas>
                                         </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -691,50 +612,34 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Location Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
                 <h2 class="section-title">Location-wise Attrition</h2>
                 <div class="row">
-                    <div class="col-md-5">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">Location Statistics</div>
                             <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped" id="locationTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Location</th>
-                                                <th>Attrition Count</th>
-                                                <th>Total Employees</th>
-                                                <th>Attrition Rate %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
+                                <table class="table table-striped" id="locationTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Location</th>
+                                            <th>Attrition Count</th>
+                                            <th>Total Employees</th>
+                                            <th>Attrition Rate %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-7">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Count by Location</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="locationBarChart"></canvas>
-                                        </div>
-                                </div>
-                            </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Rate by Location</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="locationPieChart"></canvas>
-                                        </div>
-                                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Location Analysis Chart</div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="locationChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -744,51 +649,34 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Function Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
                 <h2 class="section-title">Function-wise Attrition</h2>
                 <div class="row">
-                    <div class="col-md-5">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">Function Statistics</div>
                             <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped" id="functionTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Function</th>
-                                                <th>Attrition Count</th>
-                                                <th>Total Employees</th>
-                                                <th>Attrition Rate %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
+                                <table class="table table-striped" id="functionTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Function</th>
+                                            <th>Attrition Count</th>
+                                            <th>Total Employees</th>
+                                            <th>Attrition Rate %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
-                    </td>
-                    <div>
-                    <div class="col-md-7">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Count by Function</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="functionBarChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Rate by Function</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="functionPieChart"></canvas>
-                                        </div>
-                                    </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Function Analysis Chart</div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="functionChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -798,49 +686,33 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Tenure Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
-                <h2 class="section-title">Tenure Analysis of Exited Employees</h2>
+                <h2 class="section-title">Tenure Analysis</h2>
                 <div class="row">
-                    <div class="col-md-5">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">Tenure Statistics</div>
                             <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped" id="tenureTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Tenure Band</th>
-                                                <th>Number of Exits</th>
-                                                <th>Percentage</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
+                                <table class="table table-striped" id="tenureTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Tenure Band</th>
+                                            <th>Number of Exits</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-7">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Count by Tenure</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="tenureBarChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Distribution by Tenure</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="tenurePieChart"></canvas>
-                                        </div>
-                                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Tenure Analysis Chart</div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="tenureChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -850,50 +722,34 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Grade Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
                 <h2 class="section-title">Grade-wise Attrition</h2>
                 <div class="row">
-                    <div class="col-md-5">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">Grade Statistics</div>
                             <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped" id="gradeTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Grade</th>
-                                                <th>Attrition Count</th>
-                                                <th>Total Employees</th>
-                                                <th>Attrition Rate %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
+                                <table class="table table-striped" id="gradeTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Grade</th>
+                                            <th>Attrition Count</th>
+                                            <th>Total Employees</th>
+                                            <th>Attrition Rate %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-7">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Count by Grade</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="gradeBarChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Attrition Rate by Grade</div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="gradePieChart"></canvas>
-                                        </div>
-                                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Grade Analysis Chart</div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="gradeChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -903,48 +759,26 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
 
         <!-- Trend Analysis Section -->
-        <div class="row mt-4 animate-on-scroll">
+        <div class="row mt-4">
             <div class="col-12">
-                <h2 class="section-title">Quarterly and Monthly Attrition Trends</h2>
+                <h2 class="section-title">Attrition Trends</h2>
                 <div class="row">
                     <div class="col-md-6">
                         <div class="card">
-                            <div class="card-header">Quarterly Attrition Trend</div>
+                            <div class="card-header">Quarterly Trend</div>
                             <div class="card-body">
                                 <div class="chart-container">
                                     <canvas id="quarterlyChart"></canvas>
-                                </div>
-                                <div class="table-responsive mt-3">
-                                    <table class="table table-striped" id="quarterlyTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Quarter</th>
-                                                <th>Exit Count</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="card">
-                            <div class="card-header">Monthly Attrition Trend</div>
+                            <div class="card-header">Monthly Trend</div>
                             <div class="card-body">
                                 <div class="chart-container">
                                     <canvas id="monthlyChart"></canvas>
-                                </div>
-                                <div class="table-responsive mt-3">
-                                    <table class="table table-striped" id="monthlyTable">
-                                        <thead>
-                                            <tr>
-                                                <th>Month</th>
-                                                <th>Exit Count</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -954,7 +788,6 @@ def generate_interactive_html_report(df, output_dir, file_id):
         </div>
     </div>
 
-    <!-- Bootstrap JS and other libraries -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
@@ -966,88 +799,74 @@ def generate_interactive_html_report(df, output_dir, file_id):
             background: '#EDF3FE'
         };
         
-        // Chart color palette
         const chartColors = [
-            '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6',
-            '#F79646', '#6DAA', '#355070', '#6B705C', '#B56576'
+            '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', 
+            '#F79646', '#6D597A', '#355070', '#6B705C', '#B56576'
         ];
         
-        // Global variables for data management
         let originalData = null;
         let filteredData = null;
         let charts = {};
         
-        // Filter state
         const activeFilters = {
             gender: [],
             location: [],
-            functionFilter: [],
-            grade: [],
-            yearFilter: [],
-            tenure: []
+            function: [],
+            grade: []
         };
         
-        // Initialize report with data
         function initializeReport(data) {
             originalData = JSON.parse(JSON.stringify(data));
             filteredData = JSON.parse(JSON.stringify(data));
             
             document.getElementById('reportDate').textContent += new Date().toLocaleString();
             
-            $('.select2-multi').select2({
+            $('#genderFilter, #locationFilter, #functionFilter, #gradeFilter').select2({
                 placeholder: "Select options",
                 allowClear: true,
                 width: '100%'
             });
             
             populateFilterOptions(data);
-            setupFilterEvents();
+            setupFilterEventHandlers();
             updateDashboard(filteredData);
-            setupScrollAnimations();
         }
         
-        // Populate filter options from data
         function populateFilterOptions(data) {
-            const genderItems = document.getElementById('genderFilter');
-            data.slicers.gender.forEach(item => {
-                const option = new Option(item.label, item.value);
-                genderItems.appendChild(option);
-            });
+            const genderFilter = document.getElementById('genderFilter');
+            if (data.slicers.gender) {
+                data.slicers.gender.forEach(item => {
+                    const option = new Option(item.label, item.value);
+                    genderFilter.appendChild(option);
+                });
+            }
             
-            const locationItems = document.getElementById('locationFilter');
-            data.slicers.locationItems.forEach(item => {
-                const option = new Option(item.label, item.value);
-                locationItems.appendChild(option);
-            });
+            const locationFilter = document.getElementById('locationFilter');
+            if (data.slicers.location) {
+                data.slicers.location.forEach(item => {
+                    const option = new Option(item.label, item.value);
+                    locationFilter.appendChild(option);
+                });
+            }
             
-            const functionItems = document.getElementById('functionFilter');
-            functionItems.slicers.functionItems.forEach(item => {
-                const option = new Option(item.label, item.value);
-                functionItems.appendChild(option);
-            });
+            const functionFilter = document.getElementById('functionFilter');
+            if (data.slicers.function) {
+                data.slicers.function.forEach(item => {
+                    const option = new Option(item.label, item.value);
+                    functionFilter.appendChild(option);
+                });
+            }
             
-            const gradeItems = document.getElementById('gradeFilter');
-            data.slicers.grade.forEach(item => {
-                const option = new Option(item.label, item.value);
-                gradeItems.appendChild(option);
-            });
-            
-            const yearItems = document.getElementById('yearFilter');
-            data.slicers.year.forEach(item => {
-                const option = new Option(item.label, item.value);
-                yearItems.appendChild(option);
-            });
-            
-            const tenureItems = document.getElementById('tenureFilter');
-            const tenure_years = data.tenure.map(row => row.category);
-            tenure_years.forEach(year => {
-                const option = new Option(year, year);
-                tenureItems.appendChild(option);
-            });
+            const gradeFilter = document.getElementById('gradeFilter');
+            if (data.slicers.grade) {
+                data.slicers.grade.forEach(item => {
+                    const option = new Option(item.label, item.value);
+                    gradeFilter.appendChild(option);
+                });
+            }
         }
         
-        // Set up filter event handlers
-        function setupFilterEvents() {
+        function setupFilterEventHandlers() {
             $('#genderFilter').on('change', function() {
                 activeFilters.gender = $(this).val() || [];
                 applyFilters();
@@ -1059,7 +878,7 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
             
             $('#functionFilter').on('change', function() {
-                activeFilters.functionFilter = $(this).val() || [];
+                activeFilters.function = $(this).val() || [];
                 applyFilters();
             });
             
@@ -1068,62 +887,20 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 applyFilters();
             });
             
-            $('#yearFilter').on('change', function() {
-                activeFilters.yearFilter = $(this).val() || [];
-                applyFilters();
-            });
-            
-            $('#tenureFilter').on('change', function() {
-                activeFilters.tenure = $(this).val() || [];
-                applyFilters();
-            });
-            
             $('#clearAllFilters').on('click', function() {
-                // Clear all Select2 filters
-                const filters = [
-                    '#genderFilter',
-                    '#locationFilter',
-                    '#functionFilter',
-                    '#gradeFilter',
-                    '#yearFilter',
-                    '#tenureFilter'
-                ];
+                $('#genderFilter, #locationFilter, #functionFilter, #gradeFilter').val(null).trigger('change');
                 
-                filters.forEach(filter => {
-                    const $filter = $(filter);
-                    $filter.val(null); // Clear programmatically
-                    $filter.trigger('change.select2'); // Trigger Select2-specific change
-                    $filter.select2('close'); // Ensure dropdown is closed
-                });
-                
-                // Reset activeFilters
                 for (const key in activeFilters) {
                     activeFilters[key] = [];
                 }
                 
-                // Reset filteredData to originalData
                 filteredData = JSON.parse(JSON.stringify(originalData));
-                
-                // Update dashboard and filter summary
                 updateDashboard(filteredData);
                 updateFilterSummary();
             });
         }
         
-        // Apply all active filters to data
         function applyFilters() {
-            // Check if any filters are applied
-            const hasFilters = Object.values(activeFilters).some(filters => filters.length > 0);
-            
-            // If no filters, reset to original data
-            if (!hasFilters) {
-                filteredData = JSON.parse(JSON.stringify(originalData));
-                updateOverallStatistics();
-                updateFilterSummary();
-                updateDashboard(filteredData);
-                return;
-            }
-            
             filteredData = JSON.parse(JSON.stringify(originalData));
             
             if (activeFilters.gender.length > 0) {
@@ -1138,9 +915,9 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 );
             }
             
-            if (activeFilters.functionFilter.length > 0) {
-                filteredData.functionFilter = originalData.functionFilter.filter(row => 
-                    activeFilters.functionFilter.includes(row.category)
+            if (activeFilters.function.length > 0) {
+                filteredData.function = originalData.function.filter(row => 
+                    activeFilters.function.includes(row.category)
                 );
             }
             
@@ -1150,30 +927,11 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 );
             }
             
-            if (activeFilters.tenure.length > 0) {
-                filteredData.tenure = originalData.tenure.filter(row => 
-                    activeFilters.tenure.includes(row.category)
-                );
-            }
-            
-            if (activeFilters.yearFilter.length > 0) {
-                filteredData.quarterly = originalData.quarterly.filter(row => {
-                    const yearMatch = row.period.match(/^(\d{4})/);
-                    return yearMatch && activeFilters.yearFilter.includes(yearMatch[1]);
-                });
-                
-                filteredData.monthly = originalData.monthly.filter(row => {
-                    const yearMatch = row.period.match(/^(\d{4})/);
-                    return yearMatch && activeFilters.yearFilter.includes(yearMatch[1]);
-                });
-            }
-            
             updateOverallStatistics();
             updateFilterSummary();
             updateDashboard(filteredData);
         }
         
-        // Update overall statistics based on current filters
         function updateOverallStatistics() {
             let totalEmployees = 0;
             let totalExits = 0;
@@ -1190,7 +948,6 @@ def generate_interactive_html_report(df, output_dir, file_id):
             };
         }
         
-        // Update filter summary text
         function updateFilterSummary() {
             const filterSummary = document.getElementById('filterSummary');
             const totalFilters = Object.values(activeFilters).reduce(
@@ -1199,44 +956,21 @@ def generate_interactive_html_report(df, output_dir, file_id):
             
             if (totalFilters === 0) {
                 filterSummary.textContent = "No filters applied";
-                return;
+            } else {
+                filterSummary.textContent = `${totalFilters} filter(s) applied`;
             }
-            
-            const filterTexts = [];
-            if (activeFilters.gender.length > 0) {
-                filterTexts.push(`Gender: ${activeFilters.gender.join(', ')}`);
-            }
-            if (activeFilters.location.length > 0) {
-                filterTexts.push(`Location: ${activeFilters.location.length} selected`);
-            }
-            if (activeFilters.functionFilter.length > 0) {
-                filterTexts.push(`Function: ${activeFilters.functionFilter.length} selected`);
-            }
-            if (activeFilters.grade.length > 0) {
-                filterTexts.push(`Grade: ${activeFilters.grade.length} selected`);
-            }
-            if (activeFilters.tenure.length > 0) {
-                filterTexts.push(`Tenure: ${activeFilters.tenure.length} selected`);
-            }
-            if (activeFilters.yearFilter.length > 0) {
-                filterTexts.push(`Year: ${activeFilters.yearFilter.join(', ')}`);
-            }
-            
-            filterSummary.textContent = `Filters applied: ${filterTexts.join(' | ')}`;
         }
         
-        // Update dashboard with current data
         function updateDashboard(data) {
             updateOverallSection(data.overall);
             updateGenderSection(data.gender);
             updateLocationSection(data.location);
-            updateFunctionSection(data.functionFilter);
+            updateFunctionSection(data.function);
             updateTenureSection(data.tenure);
             updateGradeSection(data.grade);
             updateTrendSection(data.quarterly, data.monthly);
         }
         
-        // Update overall statistics section
         function updateOverallSection(overall) {
             document.getElementById('totalEmployees').textContent = overall.totalEmployees;
             document.getElementById('totalExits').textContent = overall.totalExits;
@@ -1256,479 +990,49 @@ def generate_interactive_html_report(df, output_dir, file_id):
                         labels: ['Active Employees', 'Exited Employees'],
                         datasets: [{
                             data: [overall.totalEmployees - overall.totalExits, overall.totalExits],
-                            backgroundColor: [colors.secondary, colors.accent],
-                            borderWidth: 1
+                            backgroundColor: [colors.secondary, colors.accent]
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = Math.round((value / total) * 100);
-                                        return `${label}: ${value} (${percentage}%)`;
-                                    }
-                                }
-                            }
-                        }
+                        plugins: { legend: { position: 'bottom' } }
                     }
                 });
             }
         }
         
-        // Update gender section
         function updateGenderSection(genderData) {
             populateTable('genderTable', genderData);
-            
-            if (charts.genderBar) {
-                charts.genderBar.data.labels = genderData.map(row => row.category);
-                charts.genderBar.data.datasets[0].data = genderData.map(row => row.attritionCount);
-                charts.genderBar.update();
-            } else {
-                const barCtx = document.getElementById('genderBarChart').getContext('2d');
-                charts.genderBar = new Chart(barCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: genderData.map(row => row.category),
-                        datasets: [{
-                            label: 'Attrition Count',
-                            data: genderData.map(row => row.attritionCount),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Employees' }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            if (charts.genderPie) {
-                charts.genderPie.data.labels = genderData.map(row => row.category);
-                charts.genderPie.data.datasets[0].data = genderData.map(row => row.attritionRate);
-                charts.genderPie.update();
-            } else {
-                const pieCtx = document.getElementById('genderPieChart').getContext('2d');
-                charts.genderPie = new Chart(pieCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: genderData.map(row => row.category),
-                        datasets: [{
-                            data: genderData.map(row => row.attritionRate),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}%`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('genderBarChart', genderData, 'bar', 'Attrition Count by Gender');
+            updateChart('genderPieChart', genderData, 'pie', 'Attrition Rate by Gender');
         }
         
-        // Update location section
         function updateLocationSection(locationData) {
             populateTable('locationTable', locationData);
-            
-            const topLocations = [...locationData]
-                .sort((a, b) => b.attritionCount - a.attritionCount)
-                .slice(0, 10);
-            
-            if (charts.locationBar) {
-                charts.locationBar.data.labels = topLocations.map(row => row.category);
-                charts.locationBar.data.datasets[0].data = topLocations.map(row => row.attritionCount);
-                charts.locationBar.update();
-            } else {
-                const barCtx = document.getElementById('locationBarChart').getContext('2d');
-                charts.locationBar = new Chart(barCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: topLocations.map(row => row.category),
-                        datasets: [{
-                            label: 'Attrition Count',
-                            data: topLocations.map(row => row.attritionCount),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Employees' }
-                            },
-                            x: {
-                                ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            const topLocationsByRate = [...locationData]
-                .sort((a, b) => b.attritionRate - a.attritionRate)
-                .slice(0, 7);
-                
-            if (charts.locationPie) {
-                charts.locationPie.data.labels = topLocationsByRate.map(row => row.category);
-                charts.locationPie.data.datasets[0].data = topLocationsByRate.map(row => row.attritionRate);
-                charts.locationPie.update();
-            } else {
-                const pieCtx = document.getElementById('locationPieChart').getContext('2d');
-                charts.locationPie = new Chart(pieCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: topLocationsByRate.map(row => row.category),
-                        datasets: [{
-                            data: topLocationsByRate.map(row => row.attritionRate),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}%`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('locationChart', locationData, 'bar', 'Attrition by Location');
         }
         
-        // Update function section
         function updateFunctionSection(functionData) {
             populateTable('functionTable', functionData);
-            
-            const topFunctions = [...functionData]
-                .sort((a, b) => b.attritionCount - a.attritionCount)
-                .slice(0, 10);
-            
-            if (charts.functionBar) {
-                charts.functionBar.data.labels = topFunctions.map(row => row.category);
-                charts.functionBar.data.datasets[0].data = topFunctions.map(row => row.attritionCount);
-                charts.functionBar.update();
-            } else {
-                const barCtx = document.getElementById('functionBarChart').getContext('2d');
-                charts.functionBar = new Chart(barCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: topFunctions.map(row => row.category),
-                        datasets: [{
-                            label: 'Attrition Count',
-                            data: topFunctions.map(row => row.attritionCount),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Employees' }
-                            },
-                            x: {
-                                ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            const topFunctionsByRate = [...functionData]
-                .sort((a, b) => b.attritionRate - a.attritionRate)
-                .slice(0, 7);
-                
-            if (charts.functionPie) {
-                charts.functionPie.data.labels = topFunctionsByRate.map(row => row.category);
-                charts.functionPie.data.datasets[0].data = topFunctionsByRate.map(row => row.attritionRate);
-                charts.functionPie.update();
-            } else {
-                const pieCtx = document.getElementById('functionPieChart').getContext('2d');
-                charts.functionPie = new Chart(pieCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: topFunctionsByRate.map(row => row.category),
-                        datasets: [{
-                            data: topFunctionsByRate.map(row => row.attritionRate),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}%`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('functionChart', functionData, 'bar', 'Attrition by Function');
         }
         
-        // Update tenure section
         function updateTenureSection(tenureData) {
             populateTable('tenureTable', tenureData);
-            
-            if (charts.tenureBar) {
-                charts.tenureBar.data.labels = tenureData.map(row => row.category);
-                charts.tenureBar.data.datasets[0].data = tenureData.map(row => row.count);
-                charts.tenureBar.update();
-            } else {
-                const barCtx = document.getElementById('tenureBarChart').getContext('2d');
-                charts.tenureBar = new Chart(barCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: tenureData.map(row => row.category),
-                        datasets: [{
-                            label: 'Number of Exits',
-                            data: tenureData.map(row => row.count),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Employees' }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            if (charts.tenurePie) {
-                charts.tenurePie.data.labels = tenureData.map(row => row.category);
-                charts.tenurePie.data.datasets[0].data = tenureData.map(row => row.percentage);
-                charts.tenurePie.update();
-            } else {
-                const pieCtx = document.getElementById('tenurePieChart').getContext('2d');
-                charts.tenurePie = new Chart(pieCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: tenureData.map(row => row.category),
-                        datasets: [{
-                            data: tenureData.map(row => row.percentage),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}%`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('tenureChart', tenureData, 'bar', 'Attrition by Tenure');
         }
         
-        // Update grade section
         function updateGradeSection(gradeData) {
             populateTable('gradeTable', gradeData);
-            
-            const topGrades = [...gradeData]
-                .sort((a, b) => b.attritionCount - a.attritionCount)
-                .slice(0, 10);
-            
-            if (charts.gradeBar) {
-                charts.gradeBar.data.labels = topGrades.map(row => row.category);
-                charts.gradeBar.data.datasets[0].data = topGrades.map(row => row.attritionCount);
-                charts.gradeBar.update();
-            } else {
-                const barCtx = document.getElementById('gradeBarChart').getContext('2d');
-                charts.gradeBar = new Chart(barCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: topGrades.map(row => row.category),
-                        datasets: [{
-                            label: 'Attrition Count',
-                            data: topGrades.map(row => row.attritionCount),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Employees' }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            const topGradesByRate = [...gradeData]
-                .sort((a, b) => b.attritionRate - a.attritionRate)
-                .slice(0, 7);
-                
-            if (charts.gradePie) {
-                charts.gradePie.data.labels = topGradesByRate.map(row => row.category);
-                charts.gradePie.data.datasets[0].data = topGradesByRate.map(row => row.attritionRate);
-                charts.gradePie.update();
-            } else {
-                const pieCtx = document.getElementById('gradePieChart').getContext('2d');
-                charts.gradePie = new Chart(pieCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: topGradesByRate.map(row => row.category),
-                        datasets: [{
-                            data: topGradesByRate.map(row => row.attritionRate),
-                            backgroundColor: chartColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.label}: ${context.raw}%`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('gradeChart', gradeData, 'bar', 'Attrition by Grade');
         }
         
-        // Update trend section
         function updateTrendSection(quarterlyData, monthlyData) {
-            const quarterlyTable = document.querySelector('#quarterlyTable tbody');
-            quarterlyTable.innerHTML = '';
-            quarterlyData.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.period}</td><td>${row.exitCount}</td>`;
-                quarterlyTable.appendChild(tr);
-            });
-            
-            const monthlyTable = document.querySelector('#monthlyTable tbody');
-            monthlyTable.innerHTML = '';
-            monthlyData.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.period}</td><td>${row.exitCount}</td>`;
-                monthlyTable.appendChild(tr);
-            });
-            
-            if (charts.quarterly) {
-                charts.quarterly.data.labels = quarterlyData.map(row => row.period);
-                charts.quarterly.data.datasets[0].data = quarterlyData.map(row => row.exitCount);
-                charts.quarterly.update();
-            } else {
-                const ctx = document.getElementById('quarterlyChart').getContext('2d');
-                charts.quarterly = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: quarterlyData.map(row => row.period),
-                        datasets: [{
-                            label: 'Exit Count',
-                            data: quarterlyData.map(row => row.exitCount),
-                            backgroundColor: colors.secondary
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Exits' }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            if (charts.monthly) {
-                charts.monthly.data.labels = monthlyData.map(row => row.period);
-                charts.monthly.data.datasets[0].data = monthlyData.map(row => row.exitCount);
-                charts.monthly.update();
-            } else {
-                const ctx = document.getElementById('monthlyChart').getContext('2d');
-                charts.monthly = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: monthlyData.map(row => row.period),
-                        datasets: [{
-                            label: 'Exit Count',
-                            data: monthlyData.map(row => row.exitCount),
-                            borderColor: colors.accent,
-                            backgroundColor: 'rgba(247, 150, 70, 0.2)',
-                            borderWidth: 2,
-                            tension: 0.2,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Number of Exits' }
-                            },
-                            x: {
-                                ticks: { autoSkip: true, maxTicksLimit: 12 }
-                            }
-                        }
-                    }
-                });
-            }
+            updateChart('quarterlyChart', quarterlyData, 'bar', 'Quarterly Trend', 'period', 'exitCount');
+            updateChart('monthlyChart', monthlyData, 'line', 'Monthly Trend', 'period', 'exitCount');
         }
         
-        // Helper function to populate tables
         function populateTable(tableId, data) {
             const tbody = document.querySelector(`#${tableId} tbody`);
             tbody.innerHTML = '';
@@ -1737,8 +1041,6 @@ def generate_interactive_html_report(df, output_dir, file_id):
                 const tr = document.createElement('tr');
                 if (tableId === 'tenureTable') {
                     tr.innerHTML = `<td>${row.category}</td><td>${row.count}</td><td>${row.percentage}%</td>`;
-                } else if (tableId === 'quarterlyTable' || tableId === 'monthlyTable') {
-                    tr.innerHTML = `<td>${row.period}</td><td>${row.exitCount}</td>`;
                 } else {
                     tr.innerHTML = `<td>${row.category}</td><td>${row.attritionCount}</td><td>${row.totalEmployees}</td><td>${row.attritionRate}%</td>`;
                 }
@@ -1746,20 +1048,38 @@ def generate_interactive_html_report(df, output_dir, file_id):
             });
         }
         
-        // Set up animations on scroll
-        function setupScrollAnimations() {
-            const animatedElements = document.querySelectorAll('.animate-on-scroll');
-            checkElementsInView(animatedElements);
-            window.addEventListener('scroll', () => checkElementsInView(animatedElements));
-        }
-        
-        // Check if elements are in view
-        function checkElementsInView(elements) {
-            elements.forEach(element => {
-                const elementTop = element.getBoundingClientRect().top;
-                const elementVisible = 150;
-                if (elementTop < window.innerHeight - elementVisible) {
-                    element.classList.add('visible');
+        function updateChart(chartId, data, type, title, labelKey = 'category', dataKey = 'attritionCount') {
+            const ctx = document.getElementById(chartId);
+            if (!ctx) return;
+            
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+            }
+            
+            const chartCtx = ctx.getContext('2d');
+            charts[chartId] = new Chart(chartCtx, {
+                type: type,
+                data: {
+                    labels: data.map(row => row[labelKey]),
+                    datasets: [{
+                        label: title,
+                        data: data.map(row => row[dataKey]),
+                        backgroundColor: type === 'pie' ? chartColors : colors.secondary,
+                        borderColor: type === 'line' ? colors.accent : undefined,
+                        borderWidth: type === 'line' ? 2 : undefined,
+                        tension: type === 'line' ? 0.2 : undefined
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: title },
+                        legend: { display: type === 'pie' }
+                    },
+                    scales: type !== 'pie' ? {
+                        y: { beginAtZero: true }
+                    } : undefined
                 }
             });
         }
@@ -1772,18 +1092,3 @@ def generate_interactive_html_report(df, output_dir, file_id):
     </script>
 </body>
 </html>'''
-        
-        # Replace data placeholder with actual data
-        final_html = html_template.replace('REPLACE_WITH_DATA', json.dumps(report_data))
-        
-        # Save HTML file
-        report_filename = f"Interactive_Attrition_Dashboard_{report_time}.html"
-        html_path = f"{report_dir}/{report_filename}"
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(final_html)
-        
-        logger.info(f"Interactive HTML dashboard saved to {html_path}")
-        return True, html_path, report_filename
-    except Exception as e:
-        logger.error(f"Failed to generate interactive HTML dashboard: {e}")
-        return False, None, None

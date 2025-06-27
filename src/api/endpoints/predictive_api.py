@@ -1,8 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse
-from src.services.predictive_report_generator import generate_predictive_attrition_report
+from src.services.predictive_report_generator import generate_predictive_attrition_report , load_data
 from src.services.predictive_generate_html import generate_predictive_html_report
-from src.services.data_processor import load_data
 from src.utils.file_handlers import save_upload_file
 from src.api.dependencies import get_upload_dir, get_output_dir, get_logger
 import os

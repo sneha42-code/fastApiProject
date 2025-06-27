@@ -12,6 +12,32 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 
+def load_data(file_path: str, logger):
+    """
+    Load and prepare the data
+    
+    Args:
+        file_path: Path to the Excel file
+        logger: Logger instance for logging operations
+        
+    Returns:
+        DataFrame if successful, None if error occurs
+    """
+    try:
+        df = pd.read_excel(file_path)
+        
+        # Ensure all required columns exist
+        ensure_required_columns(df)
+        
+        # Fill missing values in Action Type column
+        df['Action Type'] = df['Action Type'].fillna('')
+        
+        logger.info(f"Successfully loaded data from {file_path}")
+        return df
+    except Exception as e:
+        logger.error(f"Error loading data: {e}")
+        return None
+
 def style_table_headers(table, header_color="ADD8E6"):
     """Apply styling to the header row of a table"""
     try:
