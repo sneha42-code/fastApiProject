@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attrition Predictive Report</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h1, h2, h3 { color: #2c3e50; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 2em; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #e0f0ff; }
+        .section { margin-bottom: 2em; }
+        img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>Attrition Predictive Report</h1>
+    <p>Report generated at: {{ report_time }}</p>
+    {% if predictive_analytics.table %}
+    <div class="section">
+        <h2>Predictive Analytics (Top 50)</h2>
+        <table>
+            <tr>
+            {% for col in predictive_analytics.table[0].keys() %}
+                <th>{{ col }}</th>
+            {% endfor %}
+            </tr>
+            {% for row in predictive_analytics.table[1:] %}
+            <tr>
+                {% for col in predictive_analytics.table[0].keys() %}
+                <td>{{ row[col] }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    <!-- Add more sections as needed, e.g., gender_analysis, location_analysis, etc. -->
+</body>
+</html>
